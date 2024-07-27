@@ -545,8 +545,8 @@ static int arbel_mad ( struct ib_device *ibdev, union ib_mad *mad ) {
 	union arbelprm_mad mad_ifc;
 	int rc;
 
-	linker_assert ( sizeof ( *mad ) == sizeof ( mad_ifc.mad ),
-			mad_size_mismatch );
+	/* Sanity check */
+	static_assert ( sizeof ( *mad ) == sizeof ( mad_ifc.mad ) );
 
 	/* Copy in request packet */
 	memcpy ( &mad_ifc.mad, mad, sizeof ( mad_ifc.mad ) );
@@ -2561,7 +2561,7 @@ static void arbel_reset ( struct arbel *arbel ) {
 	unsigned int i;
 
 	/* Perform device reset and preserve PCI configuration */
-	pci_backup ( pci, &backup, backup_exclude );
+	pci_backup ( pci, &backup, PCI_CONFIG_BACKUP_ALL, backup_exclude );
 	writel ( ARBEL_RESET_MAGIC,
 		 ( arbel->config + ARBEL_RESET_OFFSET ) );
 	for ( i = 0 ; i < ARBEL_RESET_WAIT_TIME_MS ; i++ ) {
@@ -2570,7 +2570,7 @@ static void arbel_reset ( struct arbel *arbel ) {
 		if ( vendor != 0xffff )
 			break;
 	}
-	pci_restore ( pci, &backup, backup_exclude );
+	pci_restore ( pci, &backup, PCI_CONFIG_BACKUP_ALL, backup_exclude );
 }
 
 /**
@@ -3139,8 +3139,8 @@ static void arbel_remove ( struct pci_device *pci ) {
 }
 
 static struct pci_device_id arbel_nics[] = {
-	PCI_ROM ( 0x15b3, 0x6282, "mt25218", "MT25218 HCA driver", 0 ),
 	PCI_ROM ( 0x15b3, 0x6274, "mt25204", "MT25204 HCA driver", 0 ),
+	PCI_ROM ( 0x15b3, 0x6282, "mt25218", "MT25218 HCA driver", 0 ),
 };
 
 struct pci_driver arbel_driver __pci_driver = {

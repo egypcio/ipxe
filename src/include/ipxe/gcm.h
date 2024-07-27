@@ -44,14 +44,14 @@ union gcm_block {
 
 /** GCM context */
 struct gcm_context {
-	/** Hash key (H) */
-	union gcm_block key;
-	/** Counter (Y) */
-	union gcm_block ctr;
 	/** Accumulated hash (X) */
 	union gcm_block hash;
 	/** Accumulated lengths */
 	union gcm_block len;
+	/** Counter (Y) */
+	union gcm_block ctr;
+	/** Hash key (H) */
+	union gcm_block key;
 	/** Underlying block cipher */
 	struct cipher_algorithm *raw_cipher;
 	/** Underlying block cipher context */
@@ -88,13 +88,10 @@ struct _gcm_name ## _context {						\
 static int _gcm_name ## _setkey ( void *ctx, const void *key,		\
 				  size_t keylen ) {			\
 	struct _gcm_name ## _context *context = ctx;			\
-	linker_assert ( _blocksize == sizeof ( context->gcm.key ),	\
-			_gcm_name ## _unsupported_blocksize );		\
-	linker_assert ( ( ( void * ) &context->gcm ) == ctx,		\
-			_gcm_name ## _context_layout_error );		\
-	linker_assert ( ( ( void * ) &context->raw ) ==			\
-			( ( void * ) context->gcm.raw_ctx ),		\
-			_gcm_name ## _context_layout_error );		\
+	build_assert ( _blocksize == sizeof ( context->gcm.key ) );	\
+	build_assert ( offsetof ( typeof ( *context ), gcm ) == 0 );	\
+	build_assert ( offsetof ( typeof ( *context ), raw ) ==		\
+		       offsetof ( typeof ( *context ), gcm.raw_ctx ) );	\
 	return gcm_setkey ( &context->gcm, key, keylen, &_raw_cipher );	\
 }									\
 static void _gcm_name ## _setiv ( void *ctx, const void *iv,		\
@@ -121,6 +118,7 @@ struct cipher_algorithm _gcm_cipher = {					\
 	.name		= #_gcm_name,					\
 	.ctxsize	= sizeof ( struct _gcm_name ## _context ),	\
 	.blocksize	= 1,						\
+	.alignsize	= sizeof ( union gcm_block ),			\
 	.authsize	= sizeof ( union gcm_block ),			\
 	.setkey		= _gcm_name ## _setkey,				\
 	.setiv		= _gcm_name ## _setiv,				\

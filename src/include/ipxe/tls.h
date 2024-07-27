@@ -16,7 +16,6 @@ FILE_LICENCE ( GPL2_OR_LATER_OR_UBDL );
 #include <ipxe/crypto.h>
 #include <ipxe/md5.h>
 #include <ipxe/sha1.h>
-#include <ipxe/sha256.h>
 #include <ipxe/x509.h>
 #include <ipxe/privkey.h>
 #include <ipxe/pending.h>
@@ -41,9 +40,6 @@ struct tls_header {
 	uint16_t length;
 } __attribute__ (( packed ));
 
-/** TLS version 1.0 */
-#define TLS_VERSION_TLS_1_0 0x0301
-
 /** TLS version 1.1 */
 #define TLS_VERSION_TLS_1_1 0x0302
 
@@ -55,6 +51,9 @@ struct tls_header {
 
 /** Change cipher content type */
 #define TLS_TYPE_CHANGE_CIPHER 20
+
+/** Change cipher spec magic byte */
+#define TLS_CHANGE_CIPHER_SPEC 1
 
 /** Alert content type */
 #define TLS_TYPE_ALERT 21
@@ -93,6 +92,16 @@ struct tls_header {
 #define TLS_RSA_WITH_AES_256_CBC_SHA256 0x003d
 #define TLS_DHE_RSA_WITH_AES_128_CBC_SHA256 0x0067
 #define TLS_DHE_RSA_WITH_AES_256_CBC_SHA256 0x006b
+#define TLS_RSA_WITH_AES_128_GCM_SHA256 0x009c
+#define TLS_RSA_WITH_AES_256_GCM_SHA384 0x009d
+#define TLS_DHE_RSA_WITH_AES_128_GCM_SHA256 0x009e
+#define TLS_DHE_RSA_WITH_AES_256_GCM_SHA384 0x009f
+#define TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA 0xc013
+#define TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA 0xc014
+#define TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256 0xc027
+#define TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA384 0xc028
+#define TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256 0xc02f
+#define TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384 0xc030
 
 /* TLS hash algorithm identifiers */
 #define TLS_MD5_ALGORITHM 1
@@ -116,6 +125,10 @@ struct tls_header {
 #define TLS_MAX_FRAGMENT_LENGTH_2048 3
 #define TLS_MAX_FRAGMENT_LENGTH_4096 4
 
+/* TLS named curve extension */
+#define TLS_NAMED_CURVE 10
+#define TLS_NAMED_CURVE_X25519 29
+
 /* TLS signature algorithms extension */
 #define TLS_SIGNATURE_ALGORITHMS 13
 
@@ -124,6 +137,14 @@ struct tls_header {
 
 /* TLS renegotiation information extension */
 #define TLS_RENEGOTIATION_INFO 0xff01
+
+/** TLS authentication header */
+struct tls_auth_header {
+	/** Sequence number */
+	uint64_t seq;
+	/** TLS header */
+	struct tls_header header;
+} __attribute__ (( packed ));
 
 /** TLS verification data */
 struct tls_verify_data {
@@ -172,10 +193,18 @@ struct tls_cipher_suite {
 	struct cipher_algorithm *cipher;
 	/** MAC digest algorithm */
 	struct digest_algorithm *digest;
-	/** Key length */
-	uint16_t key_len;
+	/** Handshake digest algorithm (for TLSv1.2 and above) */
+	struct digest_algorithm *handshake;
 	/** Numeric code (in network-endian order) */
 	uint16_t code;
+	/** Key length */
+	uint8_t key_len;
+	/** Fixed initialisation vector length */
+	uint8_t fixed_iv_len;
+	/** Record initialisation vector length */
+	uint8_t record_iv_len;
+	/** MAC length */
+	uint8_t mac_len;
 };
 
 /** TLS cipher suite table */
@@ -185,6 +214,25 @@ struct tls_cipher_suite {
 /** Declare a TLS cipher suite */
 #define __tls_cipher_suite( pref )					\
 	__table_entry ( TLS_CIPHER_SUITES, pref )
+
+/** TLS named curved type */
+#define TLS_NAMED_CURVE_TYPE 3
+
+/** A TLS named curve */
+struct tls_named_curve {
+	/** Elliptic curve */
+	struct elliptic_curve *curve;
+	/** Numeric code (in network-endian order) */
+	uint16_t code;
+};
+
+/** TLS named curve table */
+#define TLS_NAMED_CURVES						\
+	__table ( struct tls_named_curve, "tls_named_curves" )
+
+/** Declare a TLS named curve */
+#define __tls_named_curve( pref )					\
+	__table_entry ( TLS_NAMED_CURVES, pref )
 
 /** A TLS cipher specification */
 struct tls_cipherspec {
@@ -196,10 +244,10 @@ struct tls_cipherspec {
 	void *pubkey_ctx;
 	/** Bulk encryption cipher context */
 	void *cipher_ctx;
-	/** Next bulk encryption cipher context (TX only) */
-	void *cipher_next_ctx;
 	/** MAC secret */
 	void *mac_secret;
+	/** Fixed initialisation vector */
+	void *fixed_iv;
 };
 
 /** A TLS signature and hash algorithm identifier */
@@ -335,10 +383,6 @@ struct tls_connection {
 	void *server_key;
 	/** Server Key Exchange record length */
 	size_t server_key_len;
-	/** MD5+SHA1 context for handshake verification */
-	uint8_t handshake_md5_sha1_ctx[MD5_SHA1_CTX_SIZE];
-	/** SHA256 context for handshake verification */
-	uint8_t handshake_sha256_ctx[SHA256_CTX_SIZE];
 	/** Digest algorithm used for handshake verification */
 	struct digest_algorithm *handshake_digest;
 	/** Digest algorithm context used for handshake verification */
@@ -383,6 +427,8 @@ struct tls_connection {
 	struct io_buffer rx_header_iobuf;
 	/** List of received data buffers */
 	struct list_head rx_data;
+	/** Received handshake fragment */
+	struct io_buffer *rx_handshake;
 };
 
 /** RX I/O buffer size
@@ -408,6 +454,7 @@ struct tls_connection {
 
 extern struct tls_key_exchange_algorithm tls_pubkey_exchange_algorithm;
 extern struct tls_key_exchange_algorithm tls_dhe_exchange_algorithm;
+extern struct tls_key_exchange_algorithm tls_ecdhe_exchange_algorithm;
 
 extern int add_tls ( struct interface *xfer, const char *name,
 		     struct x509_root *root, struct private_key *key );

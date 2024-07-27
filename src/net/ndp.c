@@ -140,7 +140,7 @@ static int ndp_tx_request ( struct net_device *netdev,
 	/* Construct multicast destination address */
 	memset ( &sin6_dest, 0, sizeof ( sin6_dest ) );
 	sin6_dest.sin6_family = AF_INET6;
-	sin6_dest.sin6_scope_id = netdev->index;
+	sin6_dest.sin6_scope_id = netdev->scope_id;
 	ipv6_solicited_node ( &sin6_dest.sin6_addr, net_dest );
 
 	/* Construct neighbour header */
@@ -177,7 +177,7 @@ static int ndp_tx_router_solicitation ( struct net_device *netdev ) {
 	/* Construct multicast destination address */
 	memset ( &sin6_dest, 0, sizeof ( sin6_dest ) );
 	sin6_dest.sin6_family = AF_INET6;
-	sin6_dest.sin6_scope_id = netdev->index;
+	sin6_dest.sin6_scope_id = netdev->scope_id;
 	ipv6_all_routers ( &sin6_dest.sin6_addr );
 
 	/* Construct router solicitation */
@@ -1221,7 +1221,7 @@ ipv6conf_rx_router_advertisement ( struct net_device *netdev,
 	/* Start DHCPv6 if required */
 	if ( radv->flags & ( NDP_ROUTER_MANAGED | NDP_ROUTER_OTHER ) ) {
 		stateful = ( radv->flags & NDP_ROUTER_MANAGED );
-		if ( ( rc = start_dhcpv6 ( &ipv6conf->dhcp, netdev,
+		if ( ( rc = start_dhcpv6 ( &ipv6conf->dhcp, netdev, router,
 					   stateful ) ) != 0 ) {
 			DBGC ( netdev, "NDP %s could not start state%s DHCPv6: "
 			       "%s\n", netdev->name,

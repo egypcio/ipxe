@@ -20,9 +20,11 @@ FILE_LICENCE ( GPL2_OR_LATER_OR_UBDL );
 #define SMBIOS_PCBIOS
 #define SANBOOT_PCBIOS
 #define ENTROPY_RTC
+#define ENTROPY_RDRAND
 #define TIME_RTC
 #define REBOOT_PCBIOS
 #define ACPI_RSDP
+#define MPAPI_PCBIOS
 
 #ifdef __x86_64__
 #define IOMAP_PAGES

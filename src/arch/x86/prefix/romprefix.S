@@ -54,7 +54,7 @@ FILE_LICENCE ( GPL2_OR_LATER_OR_UBDL )
 #define BUSTYPE "PCIR"
 #endif
 
-	.text
+	.section ".note.GNU-stack", "", @progbits
 	.code16
 	.arch i386
 	.section ".prefix", "ax", @progbits

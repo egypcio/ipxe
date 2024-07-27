@@ -2502,7 +2502,7 @@ static mlx_status shomron_fill_eth_send_wqe ( struct ib_device *ibdev,
 	}
 
 #define SHOMRON_GENERATE_CQE 0x3
-#define SHOMRON_INLINE_HEADERS_SIZE 18
+#define SHOMRON_INLINE_HEADERS_SIZE ETH_HLEN
 #define SHOMRON_INLINE_HEADERS_OFFSET 32
 	MLX_FILL_2 ( &eth_wqe->ctrl, 0, opcode, FLEXBOOT_NODNIC_OPCODE_SEND,
 			wqe_index, wqe_index & 0xFFFF);
@@ -2647,6 +2647,7 @@ static struct pci_device_id golan_nics[] = {
 	PCI_ROM ( 0x15b3, 0x1021, "ConnectX-7", "ConnectX-7 HCA driver, DevID 4129", 0 ),
 	PCI_ROM ( 0x15b3, 0xa2d2, "BlueField", "BlueField integrated ConnectX-5 network controller HCA driver, DevID 41682", 0 ),
 	PCI_ROM ( 0x15b3, 0xa2d6, "BlueField-2", "BlueField-2 network controller HCA driver, DevID 41686", 0 ),
+	PCI_ROM ( 0x15b3, 0xa2dc, "BlueField-3", "BlueField-3 network controller HCA driver, DevID 41692", 0 ),
 };
 
 struct pci_driver golan_driver __pci_driver = {
